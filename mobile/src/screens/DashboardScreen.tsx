@@ -1,29 +1,28 @@
 // mobile/src/screens/DashboardScreen.tsx
 
-import React from 'react';
-import { View, StyleSheet, FlatList } from 'react-native';
-// 1. We have REMOVED the unused 'Button' import
-import { Text, Card, List, FAB, Appbar } from 'react-native-paper';
+// 1. We have REMOVED the unused 'useEffect' import
+import React, { useState, useCallback } from 'react';
+import { View, StyleSheet, FlatList, Alert } from 'react-native';
+import { Text, Card, List, FAB, Appbar, ActivityIndicator } from 'react-native-paper';
 import { useAuth } from '../context/AuthContext';
+import { supabase } from '../lib/supabase';
+import { useNavigation, useFocusEffect } from '@react-navigation/native'; 
 
-// Mock data for now
-const MOCK_SUBSCRIPTIONS = [
-  { id: '1', name: 'Netflix', price: 15.99, billingCycle: 'monthly', next_payment_date: '2025-11-15' },
-  { id: '2', name: 'Spotify', price: 9.99, billingCycle: 'monthly', next_payment_date: '2025-11-20' },
-  { id: '3', name: 'Adobe Creative Cloud', price: 59.99, billingCycle: 'monthly', next_payment_date: '2025-11-28' },
-];
+export type Subscription = {
+  id: string;
+  name: string;
+  price: number;
+  billing_cycle: string;
+  next_payment_date: string;
+};
 
-// --- SOLUTION FOR ERROR 2 & 3 ---
-// We create a new, separate component for our list item.
-// This prevents defining components inside the render function.
-
+// --- SubscriptionItem Component ---
+// This component is correct and does not need changes.
 type SubscriptionItemProps = {
-  item: typeof MOCK_SUBSCRIPTIONS[0];
+  item: Subscription;
 };
 
 const SubscriptionItem = React.memo(({ item }: SubscriptionItemProps) => {
-  // These functions are now stable as they are part of a component's definition,
-  // not created on-the-fly during a render.
   const renderLeftIcon = (props: any) => <List.Icon {...props} icon="wallet" />;
   
   const renderRightPrice = (props: any) => (
@@ -42,48 +41,100 @@ const SubscriptionItem = React.memo(({ item }: SubscriptionItemProps) => {
     />
   );
 });
-// --- END OF SOLUTION ---
+// --- End of SubscriptionItem ---
 
 
-export const DashboardScreen = ({ navigation }: any) => {
-  const { signOut } = useAuth();
+export const DashboardScreen = () => {
+  const { session, signOut } = useAuth();
+  const navigation = useNavigation<any>(); 
 
-  // We also define the renderItem function outside the return statement
-  const renderSubscriptionItem = ({ item }: { item: typeof MOCK_SUBSCRIPTIONS[0] }) => (
+  const [loading, setLoading] = useState(true);
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
+  const [totalSpend, setTotalSpend] = useState(0);
+
+  // --- 2. THE FIX: Wrap `fetchSubscriptions` in its own useCallback ---
+  // This function will now only be re-created if the `session` changes.
+  const fetchSubscriptions = useCallback(async () => {
+    if (!session) return; 
+
+    try {
+      setLoading(true);
+      
+      const { data, error } = await supabase
+        .from('subscriptions')
+        .select('id, name, price, billing_cycle, next_payment_date')
+        .eq('user_id', session.user.id)
+        .eq('status', 'active'); 
+
+      if (error) throw error;
+
+      if (data) {
+        setSubscriptions(data as Subscription[]);
+        
+        const total = data.reduce((acc, sub) => {
+          if (sub.billing_cycle === 'monthly') {
+            return acc + sub.price;
+          }
+          return acc;
+        }, 0);
+        setTotalSpend(total);
+      }
+    } catch (error: any) {
+      Alert.alert('Error fetching data', error.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [session]); // This function depends on `session`
+
+  // --- 3. THE FIX: Update the `useFocusEffect` dependency ---
+  // Now we pass our stable `fetchSubscriptions` function as a dependency.
+  useFocusEffect(
+    useCallback(() => {
+      fetchSubscriptions();
+    }, [fetchSubscriptions]) // <-- This is now correct.
+  );
+
+  const renderSubscriptionItem = ({ item }: { item: Subscription }) => (
     <SubscriptionItem item={item} />
   );
 
   return (
     <View style={styles.container}>
-      {/* 1. The App Bar (Header) */}
       <Appbar.Header>
         <Appbar.Content title="Your Dashboard" />
         <Appbar.Action icon="logout" onPress={signOut} />
       </Appbar.Header>
 
-      {/* 2. The Summary Card */}
       <Card style={styles.summaryCard} mode="elevated">
         <Card.Title title="Total Monthly Spend" />
         <Card.Content>
-          {/* TODO: Add live currency conversion */}
-          <Text variant="displayMedium">₹86.97</Text>
-          <Text variant="bodyMedium">Based on 3 active subscriptions</Text>
+          <Text variant="displayMedium">₹{totalSpend.toFixed(2)}</Text>
+          <Text variant="bodyMedium">
+            Based on {subscriptions.length} active subscriptions
+          </Text>
         </Card.Content>
       </Card>
 
-      {/* 3. The "Upcoming" and "All" Lists */}
       <Text variant="headlineSmall" style={styles.listHeader}>
-        Upcoming Payments
+        Active Subscriptions
       </Text>
       
-      <FlatList
-        data={MOCK_SUBSCRIPTIONS}
-        keyExtractor={(item) => item.id}
-        renderItem={renderSubscriptionItem} // <-- Use the stable function
-        style={styles.list}
-      />
+      {loading ? (
+        <ActivityIndicator animating={true} size="large" style={styles.loader} />
+      ) : (
+        <FlatList
+          data={subscriptions}
+          keyExtractor={(item) => item.id}
+          renderItem={renderSubscriptionItem}
+          style={styles.list}
+          ListEmptyComponent={
+            <Text style={styles.emptyText}>
+              No subscriptions yet. Tap the '+' button to add your first one!
+            </Text>
+          }
+        />
+      )}
 
-      {/* 4. The Floating Action Button (FAB) */}
       <FAB
         icon="plus"
         style={styles.fab}
@@ -96,7 +147,7 @@ export const DashboardScreen = ({ navigation }: any) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff', // Or your theme's background
+    backgroundColor: '#fff',
   },
   summaryCard: {
     margin: 16,
@@ -104,6 +155,7 @@ const styles = StyleSheet.create({
   listHeader: {
     marginLeft: 16,
     marginTop: 16,
+    marginBottom: 8,
   },
   list: {
     flex: 1,
@@ -119,5 +171,16 @@ const styles = StyleSheet.create({
     margin: 16,
     right: 0,
     bottom: 0,
+  },
+  loader: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emptyText: {
+    textAlign: 'center',
+    marginTop: 40,
+    fontSize: 16,
+    color: '#888',
   },
 });
