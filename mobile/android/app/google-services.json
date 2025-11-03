@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "217563768495",
+    "project_id": "trackme-d7ada",
+    "storage_bucket": "trackme-d7ada.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:217563768495:android:d6bc73c1ffe435feaa165a",
+        "android_client_info": {
+          "package_name": "com.mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD9tVYsCGnvbpSY0Q9fhvpQqRVgJ8dXt7U"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
