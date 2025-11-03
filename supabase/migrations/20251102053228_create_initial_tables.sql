@@ -75,5 +75,3 @@ CREATE TABLE IF NOT EXISTS devices (
 );
 
 CREATE INDEX IF NOT EXISTS idx_devices_user ON devices(user_id);
-
--- ...existing code...
