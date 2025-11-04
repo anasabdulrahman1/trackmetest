@@ -78,9 +78,20 @@ export const DashboardScreen = () => {
       const subs = data ?? [];
       setSubscriptions(subs);
 
+      // Normalize different billing cycles to monthly equivalent
       const total = subs.reduce((acc, sub) => {
-        if (sub.billing_cycle === 'monthly') return acc + sub.price;
-        return acc;
+        const price = Number(sub.price) || 0;
+        switch (sub.billing_cycle) {
+          case 'monthly':
+            return acc + price;
+          case 'quarterly':
+            return acc + price / 3;
+          case 'yearly':
+            return acc + price / 12;
+          case 'trial':
+          default:
+            return acc; // trials or unknown cycles not counted
+        }
       }, 0);
       setTotalSpend(total);
     } catch (error: any) {
