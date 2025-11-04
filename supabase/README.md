@@ -22,6 +22,22 @@ curl -X POST "https://<project>.supabase.co/functions/v1/subscription-rollover" 
 - `public.devices`: All operations restricted to `auth.uid() = user_id`.
 
 ## Enums and constraints
+## Push Reminders (Edge Function)
+
+- Function: `send-reminders` (HTTP v1 FCM)
+- Secrets required:
+  - `GOOGLE_SERVICE_ACCOUNT_JSON` (full JSON string)
+  - `SUPABASE_SERVICE_ROLE_KEY` (provided by platform)
+
+Local test (example):
+
+```bash
+supabase functions serve send-reminders \
+  --env GOOGLE_SERVICE_ACCOUNT_JSON="$(cat path/to/sa.json)" \
+  --no-verify-jwt
+```
+
+Schedule hourly in Supabase Dashboard → Functions → Schedules, or use an external scheduler to POST the function endpoint.
 
 - `billing_cycle` is an enum: `monthly | quarterly | yearly | trial`.
 

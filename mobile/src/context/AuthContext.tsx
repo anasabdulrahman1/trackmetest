@@ -4,6 +4,15 @@ import React, { createContext, useState, useEffect, useContext } from 'react';
 import { Platform } from 'react-native';
 import { Session, AuthError } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
+async function upsertUserTimezone(userId?: string) {
+  try {
+    if (!userId) return;
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+    await supabase.from('profiles').update({ timezone: tz }).eq('id', userId);
+  } catch {
+    // ignore failures silently
+  }
+}
 import {
   getMessaging,
   requestPermission,
@@ -181,6 +190,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             registerDeviceForNotifications(currentSession.user.id),
             new Promise<void>((resolve) => setTimeout(() => resolve(), 3000)),
           ]);
+
+          // Best effort timezone sync
+          await upsertUserTimezone(currentSession.user.id);
         }
 
         // Rely on explicit signOut() path to mark devices logged out to avoid double updates

@@ -33,6 +33,8 @@ export const AddSubscriptionScreen = ({ navigation }: any) => {
   const [isTrial, setIsTrial] = useState(false);
   const [loading, setLoading] = useState(false);
   const [snackbar, setSnackbar] = useState('');
+  const [reminderChips, setReminderChips] = useState<{ [k: number]: boolean }>({ 1: true, 3: true, 7: true });
+  const [customReminder, setCustomReminder] = useState('');
 
   // Prevent crashes when navigating away during picker open
   useEffect(() => {
@@ -80,6 +82,16 @@ export const AddSubscriptionScreen = ({ navigation }: any) => {
 
     setLoading(true);
 
+    const selectedOffsets = Object.entries(reminderChips)
+      .filter(([k, v]) => v)
+      .map(([k]) => parseInt(k, 10));
+    const customOffsets = customReminder
+      .split(',')
+      .map((s) => parseInt(s.trim(), 10))
+      .filter((n) => Number.isFinite(n) && n >= 0 && n <= 365);
+    const allOffsets = Array.from(new Set([...selectedOffsets, ...customOffsets])).slice(0, 12);
+    const reminder_period = allOffsets.join(',');
+
     const subscriptionData = {
       user_id: session.user.id,
       name: name.trim(),
@@ -88,6 +100,7 @@ export const AddSubscriptionScreen = ({ navigation }: any) => {
       next_payment_date: firstPaymentDate.toISOString().split('T')[0],
       status: 'active',
       category: 'General',
+      reminder_period,
     };
 
     try {
@@ -152,6 +165,29 @@ export const AddSubscriptionScreen = ({ navigation }: any) => {
               ]}
             />
           )}
+
+          {/* Reminder Offsets */}
+          <Text style={{ marginTop: 12, marginBottom: 8, color: '#444' }}>Remind me before due date</Text>
+          <SegmentedButtons
+            value={Object.keys(reminderChips).filter((k) => reminderChips[parseInt(k, 10)]).join(',')}
+            onValueChange={(val) => {
+              const n = parseInt(String(val), 10);
+              setReminderChips((prev) => ({ ...prev, [n]: !prev[n] }));
+            }}
+            buttons={[
+              { value: '1', label: '1 day' },
+              { value: '3', label: '3 days' },
+              { value: '7', label: '7 days' },
+            ]}
+            style={{ marginBottom: 8 }}
+          />
+          <TextInput
+            label="Custom offsets (e.g. 2,5,10)"
+            value={customReminder}
+            onChangeText={setCustomReminder}
+            mode="outlined"
+            style={styles.input}
+          />
 
           <Button
             mode="outlined"
