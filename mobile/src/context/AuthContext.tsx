@@ -1,11 +1,19 @@
+// src/context/AuthContext.tsx
+
 import React, { createContext, useState, useEffect, useContext } from 'react';
+import { Platform } from 'react-native';
 import { Session, AuthError } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
-import { Alert, Platform } from 'react-native';
-// 1. IMPORT FIREBASE MESSAGING
-import messaging from '@react-native-firebase/messaging';
+import {
+  getMessaging,
+  requestPermission,
+  getToken,
+  AuthorizationStatus,
+} from '@react-native-firebase/messaging';
 
-// Define the shape of our context
+// ---------------------------------------------------------
+// Context Interface
+// ---------------------------------------------------------
 interface AuthContextType {
   session: Session | null;
   loading: boolean;
@@ -18,100 +26,201 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// --- 2. NEW FUNCTION TO REQUEST PERMISSION & REGISTER DEVICE ---
-async function registerDeviceForNotifications(userId: string) {
+// ---------------------------------------------------------
+// Helper Functions
+// ---------------------------------------------------------
+const delay = (ms: number): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, ms));
+
+async function waitForProfile(userId: string): Promise<boolean> {
+  for (let attempt = 1; attempt <= 5; attempt++) {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (error) {
+      console.warn(`Error checking profile: ${error.message}`);
+      return false;
+    }
+
+    if (data) return true;
+
+    console.log(
+      `User record not found yet — delaying device registration (attempt ${attempt}/5)...`
+    );
+    await delay(1000 * attempt);
+  }
+
+  console.warn('Profile creation timeout — skipping device registration.');
+  return false;
+}
+
+// ---------------------------------------------------------
+// Device Registration Logic
+// ---------------------------------------------------------
+async function registerDeviceForNotifications(userId?: string) {
   try {
-    // 1. Request permission from the user
-    await messaging().requestPermission();
-    
-    // 2. Get the FCM token
-    const fcmToken = await messaging().getToken();
+    if (!userId) return;
 
-    if (fcmToken) {
-      console.log('FCM Token:', fcmToken);
+    const profileExists = await waitForProfile(userId);
+    if (!profileExists) return;
 
-      // 3. Save the token to our 'devices' table
-      // upsert = update if exists, insert if not
-      const { error } = await supabase
+    const messagingInstance = getMessaging();
+
+    // Request permission directly (avoid deprecated hasPermission checks)
+    const permission = await requestPermission(messagingInstance);
+    if (
+      permission !== AuthorizationStatus.AUTHORIZED &&
+      permission !== AuthorizationStatus.PROVISIONAL
+    ) {
+      console.log('🔕 Notification permission denied.');
+      return;
+    }
+
+    const fcmToken = await getToken(messagingInstance);
+    if (!fcmToken) {
+      console.log('❌ No FCM token retrieved.');
+      return;
+    }
+
+    console.log('FCM Token:', fcmToken);
+
+    const { data: existingDevice } = await supabase
+      .from('devices')
+      .select('id, device_token, logged_in')
+      .eq('user_id', userId)
+      .eq('device_token', fcmToken)
+      .maybeSingle();
+
+    if (existingDevice) {
+      await supabase
         .from('devices')
-        .upsert({ 
-          user_id: userId,
-          device_token: fcmToken, 
-          platform: Platform.OS,
-        }, {
-          onConflict: 'device_token' // Use this to prevent duplicates
-        });
+        .update({
+          logged_in: true,
+          last_active: new Date().toISOString(),
+        })
+        .eq('id', existingDevice.id);
 
-      if (error) throw error;
-      console.log('Device token saved to Supabase.');
+      console.log('✅ Existing device reactivated.');
+      return;
     }
+
+    const { error: insertError } = await supabase.from('devices').insert({
+      user_id: userId,
+      device_token: fcmToken,
+      platform: Platform.OS,
+      logged_in: true,
+      last_active: new Date().toISOString(),
+    });
+
+    if (insertError) throw insertError;
+    console.log('📲 New device registered in Supabase.');
   } catch (error: any) {
-    // Don't bother the user if they deny permission
-    if (error.code !== 'messaging/permission-denied') {
-      Alert.alert('Error registering for notifications', error.message);
-    }
+    console.error('❌ Device registration failed:', error.message);
   }
 }
 
+// ---------------------------------------------------------
+// Mark Devices Logged Out (safe & universal)
+// ---------------------------------------------------------
+async function markDeviceLoggedOut(userId?: string) {
+  try {
+    if (!userId) return;
+
+    const { data: updatedRows, error } = await supabase
+      .from('devices')
+      .update({
+        logged_in: false,
+        last_active: new Date().toISOString(),
+      })
+      .eq('user_id', userId)
+      .select('id, logged_in');
+
+    if (error) throw error;
+    console.log(`🚪 Devices marked logged out: ${updatedRows?.length ?? 0}`);
+  } catch (error: any) {
+    console.error('❌ Failed to mark device logout:', error.message);
+  }
+}
+
+// ---------------------------------------------------------
+// AuthProvider Component
+// ---------------------------------------------------------
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // --- Initial Session Load ---
   useEffect(() => {
-    // 3. Check for existing session on app start
+    let isMounted = true;
     supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
-      setSession(initialSession);
-      setLoading(false);
-      
-      // 4. If user is already logged in, register their device
-      if (initialSession) {
-        registerDeviceForNotifications(initialSession.user.id);
+      if (isMounted) {
+        setSession(initialSession);
+        setLoading(false);
       }
     });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
-    // 5. Listen for auth state changes
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      (_event, currentSession) => {
+  // --- Auth State Listener ---
+  useEffect(() => {
+    const { data: listener } = supabase.auth.onAuthStateChange(
+      async (_event, currentSession) => {
         setSession(currentSession);
-        setLoading(false); 
-        
-        // 6. If the state changes to "LOGGED IN", register the device
+        setLoading(false);
+
         if (_event === 'SIGNED_IN' && currentSession) {
-          registerDeviceForNotifications(currentSession.user.id);
+          console.log('User signed in — registering device...');
+
+          // ✅ FIXED Promise type issue here
+          await Promise.race([
+            registerDeviceForNotifications(currentSession.user.id),
+            new Promise<void>((resolve) => setTimeout(() => resolve(), 3000)),
+          ]);
         }
-        
-        // TODO: We also need to remove the token from our DB on SIGNED_OUT
+
+        // Rely on explicit signOut() path to mark devices logged out to avoid double updates
       }
     );
 
     return () => {
-      authListener?.subscription.unsubscribe();
+      listener?.subscription.unsubscribe();
     };
-  }, []);
+  }, [session?.user?.id]);
 
-  // --- (Rest of your provider code: value, functions, etc.) ---
+  // ---------------------------------------------------------
+  // Auth Context Value
+  // ---------------------------------------------------------
   const value: AuthContextType = {
     session,
     loading,
-    signIn: async (email: string, password: string) => {
+    signIn: async (email, password) => {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       return { error };
     },
-    signUp: async (email: string, password: string) => {
+    signUp: async (email, password) => {
       const { error } = await supabase.auth.signUp({ email, password });
       return { error };
     },
     signOut: async () => {
-      // TODO: Add logic here to remove the device_token from Supabase
+      const userId = session?.user?.id;
+      // Perform device logout before signing out to preserve auth for RLS
+      if (userId) {
+        await markDeviceLoggedOut(userId);
+      }
       const { error } = await supabase.auth.signOut();
       return { error };
     },
     signInWithGoogle: async () => {
-      Alert.alert('To-Do', 'Google Sign-In is not configured yet.');
+      console.log('Google Sign-In not yet configured.');
       return { error: null };
     },
     signInWithApple: async () => {
-      Alert.alert('To-Do', 'Apple Sign-In is not configured yet.');
+      console.log('Apple Sign-In not yet configured.');
       return { error: null };
     },
   };
@@ -123,10 +232,19 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   );
 };
 
+// ---------------------------------------------------------
+// Hook
+// ---------------------------------------------------------
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
+  if (!context) throw new Error('useAuth must be used within an AuthProvider');
   return context;
 };
+
+
+
+
+
+
+
+

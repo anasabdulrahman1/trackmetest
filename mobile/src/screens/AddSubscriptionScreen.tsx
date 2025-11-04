@@ -1,134 +1,264 @@
-// mobile/src/screens/AddSubscriptionScreen.tsx
-
-import React, { useState } from 'react';
-import { View, StyleSheet, Alert } from 'react-native';
-import { Button, TextInput, Text, SegmentedButtons, Switch } from 'react-native-paper';
-
-// --- 1. IMPORT SUPABASE AND AUTH ---
+// src/screens/AddSubscriptionScreen.tsx
+import React, { useState, useEffect } from 'react';
+import {
+  Platform,
+  View,
+  StyleSheet,
+  Alert,
+  TouchableWithoutFeedback,
+  Keyboard,
+} from 'react-native';
+import {
+  Button,
+  TextInput,
+  Text,
+  SegmentedButtons,
+  Switch,
+  Snackbar,
+  HelperText,
+} from 'react-native-paper';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
+import { AppLayout } from '../Components/AppLayout';
 
 export const AddSubscriptionScreen = ({ navigation }: any) => {
-  // --- 2. GET THE CURRENT SESSION ---
-  const { session } = useAuth(); // We need the user's ID from the session
+  const { session } = useAuth();
 
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
   const [billingCycle, setBillingCycle] = useState('monthly');
-  const [firstPaymentDate, setFirstPaymentDate] = useState(new Date().toISOString().split('T')[0]);
+  const [firstPaymentDate, setFirstPaymentDate] = useState(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [isTrial, setIsTrial] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [snackbar, setSnackbar] = useState('');
 
-  // --- 3. UPDATE THE SAVE FUNCTION ---
+  // Prevent crashes when navigating away during picker open
+  useEffect(() => {
+    return () => {
+      setShowDatePicker(false);
+    };
+  }, []);
+
+  // --- Safe Date Picker Logic ---
+  const onDateChange = (_event: any, selectedDate?: Date) => {
+    if (Platform.OS === 'android') {
+      setShowDatePicker(false);
+    }
+    if (selectedDate) {
+      setFirstPaymentDate(selectedDate);
+    }
+  };
+
+  const openDatePicker = () => {
+    if (!showDatePicker) {
+      setShowDatePicker(true);
+    }
+  };
+
+  // --- Input Validation ---
+  const validateInputs = (): boolean => {
+    if (!name.trim()) {
+      setSnackbar('Please enter a subscription name.');
+      return false;
+    }
+    if (!isTrial && (!price || isNaN(Number(price)) || Number(price) <= 0)) {
+      setSnackbar('Please enter a valid price.');
+      return false;
+    }
+    return true;
+  };
+
+  // --- Save Subscription ---
   const handleSave = async () => {
     if (!session?.user) {
       Alert.alert('Error', 'You must be logged in to save a subscription.');
       return;
     }
+    if (!validateInputs()) return;
+
     setLoading(true);
 
     const subscriptionData = {
       user_id: session.user.id,
-      name: name,
+      name: name.trim(),
       price: parseFloat(price || '0'),
       billing_cycle: isTrial ? 'trial' : billingCycle,
-      next_payment_date: firstPaymentDate,
-      status: 'active', // Set the status as 'active'
-      // category: '...' // We can add this field later
+      next_payment_date: firstPaymentDate.toISOString().split('T')[0],
+      status: 'active',
+      category: 'General',
     };
 
     try {
-      const { error } = await supabase
-        .from('subscriptions') // Our table name
-        .insert(subscriptionData); // Insert the data
+      const { error } = await supabase.from('subscriptions').insert(subscriptionData);
+      if (error) throw error;
 
-      if (error) {
-        throw error;
-      }
-
-      Alert.alert('Success!', `${name} has been added to your tracker.`);
-      navigation.goBack(); // Go back to the dashboard
+      setSnackbar(`${name} added successfully!`);
+      setTimeout(() => navigation.goBack(), 1000);
     } catch (error: any) {
-      Alert.alert('Error Saving', error.message);
+      console.error('❌ Error Saving:', error.message);
+      setSnackbar(`Error: ${error.message}`);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <View style={styles.container}>
-      <TextInput
-        label="Subscription Name (e.g., Netflix)"
-        value={name}
-        onChangeText={setName}
-        style={styles.input}
-        mode="outlined"
-      />
-      <TextInput
-        label="Price"
-        value={price}
-        onChangeText={setPrice}
-        keyboardType="numeric"
-        style={styles.input}
-        mode="outlined"
-        disabled={isTrial}
-      />
-      <TextInput
-        label={isTrial ? "Trial End Date (YYYY-MM-DD)" : "First Payment Date (YYYY-MM-DD)"}
-        value={firstPaymentDate}
-        onChangeText={setFirstPaymentDate}
-        style={styles.input}
-        mode="outlined"
-      />
+    <AppLayout scrollable>
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <View>
+          <Text variant="headlineMedium" style={styles.title}>
+            Add New Subscription
+          </Text>
 
-      <View style={styles.switchContainer}>
-        <Text variant="bodyLarge">Is this a Free Trial?</Text>
-        <Switch value={isTrial} onValueChange={setIsTrial} />
-      </View>
+          <TextInput
+            label="Subscription Name (e.g., Netflix)"
+            value={name}
+            onChangeText={setName}
+            style={styles.input}
+            mode="outlined"
+          />
 
-      {!isTrial && (
-        <SegmentedButtons
-          value={billingCycle}
-          onValueChange={setBillingCycle}
-          style={styles.input}
-          buttons={[
-            { value: 'monthly', label: 'Monthly' },
-            { value: 'yearly', label: 'Yearly' },
-            { value: 'quarterly', label: 'Quarterly' },
-          ]}
-        />
-      )}
+          <TextInput
+            label="Price (₹)"
+            value={price}
+            onChangeText={setPrice}
+            keyboardType="numeric"
+            mode="outlined"
+            style={styles.input}
+            disabled={isTrial}
+          />
+          {!isTrial && (
+            <HelperText type="info" visible>
+              Leave blank for ₹0 subscriptions (e.g., trials or free tiers)
+            </HelperText>
+          )}
 
-      <Button
-        mode="contained"
-        onPress={handleSave}
-        loading={loading} // Add loading state
-        style={styles.button}
-        disabled={loading || !name || (!isTrial && !price)}>
-        Save Subscription
-      </Button>
-    </View>
+          <View style={styles.switchContainer}>
+            <Text style={styles.switchLabel}>Is this a Free Trial?</Text>
+            <Switch value={isTrial} onValueChange={setIsTrial} />
+          </View>
+
+          {!isTrial && (
+            <SegmentedButtons
+              value={billingCycle}
+              onValueChange={setBillingCycle}
+              style={styles.segmented}
+              buttons={[
+                { value: 'monthly', label: 'Monthly' },
+                { value: 'yearly', label: 'Yearly' },
+                { value: 'quarterly', label: 'Quarterly' },
+              ]}
+            />
+          )}
+
+          <Button
+            mode="outlined"
+            onPress={openDatePicker}
+            style={styles.dateButton}>
+            {isTrial ? 'Select Trial End Date' : 'Select First Payment Date'}
+          </Button>
+
+          <Text style={styles.dateText}>{firstPaymentDate.toDateString()}</Text>
+
+          {showDatePicker && Platform.OS === 'android' && (
+            <DateTimePicker
+              value={firstPaymentDate}
+              mode="date"
+              display="default"
+              onChange={onDateChange}
+            />
+          )}
+
+          {Platform.OS === 'ios' && showDatePicker && (
+            <View style={styles.iosPickerContainer}>
+              <DateTimePicker
+                value={firstPaymentDate}
+                mode="date"
+                display="inline"
+                onChange={onDateChange}
+              />
+              <Button
+                onPress={() => setShowDatePicker(false)}
+                style={styles.doneButton}>
+                Done
+              </Button>
+            </View>
+          )}
+
+          <Button
+            mode="contained"
+            onPress={handleSave}
+            loading={loading}
+            disabled={loading || !name}
+            style={styles.saveButton}>
+            Save Subscription
+          </Button>
+
+          <Snackbar
+            visible={!!snackbar}
+            onDismiss={() => setSnackbar('')}
+            duration={2500}>
+            {snackbar}
+          </Snackbar>
+        </View>
+      </TouchableWithoutFeedback>
+    </AppLayout>
   );
 };
 
+// ---------------------------------------------------------
+// Styles
+// ---------------------------------------------------------
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 20,
-    backgroundColor: '#fff',
+  title: {
+    textAlign: 'center',
+    marginBottom: 24,
+    fontWeight: 'bold',
+    color: '#222',
   },
   input: {
-    marginBottom: 16,
-  },
-  button: {
-    marginTop: 16,
-    paddingVertical: 8,
+    marginBottom: 12,
   },
   switchContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 8,
+    marginVertical: 14,
+  },
+  switchLabel: {
+    fontSize: 16,
+    color: '#444',
+  },
+  segmented: {
+    marginBottom: 16,
+  },
+  dateButton: {
+    marginTop: 10,
+  },
+  dateText: {
+    textAlign: 'center',
+    color: '#666',
+    marginTop: 8,
+    marginBottom: 12,
+  },
+  saveButton: {
+    marginTop: 18,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: '#6c47ff',
+  },
+  iosPickerContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    paddingVertical: 10,
+    marginTop: 10,
+  },
+  doneButton: {
+    alignSelf: 'flex-end',
+    marginRight: 10,
+    marginTop: 4,
   },
 });
+
