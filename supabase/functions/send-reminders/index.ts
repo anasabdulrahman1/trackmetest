@@ -1,6 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
-import { serve } from 'npm:std/server';
-import { SignJWT, importPKCS8, jwtVerify } from 'npm:jose';
+import { SignJWT, importPKCS8 } from 'npm:jose';
 import { DateTime } from 'npm:luxon';
 
 type ServiceAccount = {
@@ -51,7 +50,7 @@ function parseOffsets(reminderPeriod?: string | null): number[] {
     .slice(0, 12);
 }
 
-serve(async (_req) => {
+Deno.serve(async (_req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
