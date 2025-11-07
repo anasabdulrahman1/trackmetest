@@ -46,7 +46,7 @@ export const SignUpScreen = ({ navigation }: any) => {
   };
 
   return (
-    <AppLayout centerContent>
+    <AppLayout scrollable>
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -63,7 +63,11 @@ export const SignUpScreen = ({ navigation }: any) => {
               autoCapitalize="none"
               keyboardType="email-address"
               mode="outlined"
+              dense
+              multiline={false}
+              numberOfLines={1}
               style={styles.input}
+              outlineStyle={styles.inputOutline}
               accessibilityLabel="Email input field"
             />
 
@@ -73,7 +77,11 @@ export const SignUpScreen = ({ navigation }: any) => {
               onChangeText={setPassword}
               secureTextEntry
               mode="outlined"
+              dense
+              multiline={false}
+              numberOfLines={1}
               style={styles.input}
+              outlineStyle={styles.inputOutline}
               accessibilityLabel="Password input field"
             />
 
@@ -83,7 +91,11 @@ export const SignUpScreen = ({ navigation }: any) => {
               onChangeText={setConfirmPwd}
               secureTextEntry
               mode="outlined"
+              dense
+              multiline={false}
+              numberOfLines={1}
               style={styles.input}
+              outlineStyle={styles.inputOutline}
               accessibilityLabel="Confirm password input field"
             />
 
@@ -122,24 +134,32 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   inner: {
     width: '100%',
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
     justifyContent: 'center',
   },
   title: {
     textAlign: 'center',
-    marginBottom: 24,
-    fontWeight: 'bold',
-    color: '#222',
+    marginBottom: 32,
+    fontWeight: '700',
+    color: '#1a1a1a',
+    letterSpacing: 0.5,
   },
   input: {
     marginBottom: 12,
+    backgroundColor: '#ffffff',
+    height: 56,
+  },
+  inputOutline: {
+    borderRadius: 12,
+    borderWidth: 1.5,
   },
   button: {
-    marginTop: 12,
-    borderRadius: 8,
+    marginTop: 20,
+    borderRadius: 12,
+    paddingVertical: 6,
   },
   signInLink: {
-    marginTop: 16,
+    marginTop: 20,
     alignSelf: 'center',
   },
 });

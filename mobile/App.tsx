@@ -1,6 +1,6 @@
 // App.tsx
 import 'react-native-url-polyfill/auto'; // Must stay at the very top
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Provider as PaperProvider, MD3LightTheme } from 'react-native-paper';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -12,6 +12,7 @@ import {
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { ActivityIndicator } from 'react-native-paper';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
+import { initializeNotifications } from './src/utils/notificationHandler';
 
 
 // --- Screens ---
@@ -111,6 +112,22 @@ function RootNavigator() {
  * Wraps everything inside Paper, SafeArea, and Auth context.
  */
 export default function App() {
+  useEffect(() => {
+    // Initialize notification handlers
+    let unsubscribe: (() => void) | undefined;
+    
+    initializeNotifications((data) => {
+      console.log('Notification pressed with data:', data);
+      // Handle navigation based on notification data if needed
+    }).then((unsub) => {
+      unsubscribe = unsub;
+    });
+
+    return () => {
+      unsubscribe?.();
+    };
+  }, []);
+
   return (
     <SafeAreaProvider>
       <PaperProvider theme={paperTheme}>

@@ -215,7 +215,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       return { error };
     },
     signUp: async (email, password) => {
-      const { error } = await supabase.auth.signUp({ email, password });
+      const { error } = await supabase.auth.signUp({ 
+        email, 
+        password,
+        options: {
+          emailRedirectTo: undefined, // Mobile apps don't need redirect URL
+        }
+      });
       return { error };
     },
     signOut: async () => {

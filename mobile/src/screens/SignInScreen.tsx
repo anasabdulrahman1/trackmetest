@@ -39,7 +39,7 @@ export const SignInScreen = ({ navigation }: any) => {
     Alert.alert('Coming Soon', 'Apple Sign-In integration is not yet configured.');
 
   return (
-    <AppLayout centerContent>
+    <AppLayout scrollable>
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -56,7 +56,11 @@ export const SignInScreen = ({ navigation }: any) => {
               autoCapitalize="none"
               keyboardType="email-address"
               mode="outlined"
+              dense
+              multiline={false}
+              numberOfLines={1}
               style={styles.input}
+              outlineStyle={styles.inputOutline}
               accessibilityLabel="Email input field"
             />
 
@@ -66,7 +70,11 @@ export const SignInScreen = ({ navigation }: any) => {
               onChangeText={setPassword}
               secureTextEntry
               mode="outlined"
+              dense
+              multiline={false}
+              numberOfLines={1}
               style={styles.input}
+              outlineStyle={styles.inputOutline}
               accessibilityLabel="Password input field"
             />
 
@@ -117,27 +125,36 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   inner: {
     width: '100%',
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
     justifyContent: 'center',
   },
   title: {
     textAlign: 'center',
-    marginBottom: 24,
-    fontWeight: 'bold',
-    color: '#222',
+    marginBottom: 32,
+    fontWeight: '700',
+    color: '#1a1a1a',
+    letterSpacing: 0.5,
   },
   input: {
     marginBottom: 12,
+    backgroundColor: '#ffffff',
+    height: 56,
+  },
+  inputOutline: {
+    borderRadius: 12,
+    borderWidth: 1.5,
   },
   button: {
-    marginTop: 12,
-    borderRadius: 8,
+    marginTop: 16,
+    borderRadius: 12,
+    paddingVertical: 6,
   },
   divider: {
-    marginVertical: 20,
+    marginVertical: 24,
   },
   socialButton: {
-    marginTop: 8,
-    borderRadius: 8,
+    marginTop: 12,
+    borderRadius: 12,
+    paddingVertical: 4,
   },
 });

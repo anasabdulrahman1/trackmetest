@@ -83,7 +83,7 @@ export const AddSubscriptionScreen = ({ navigation }: any) => {
     setLoading(true);
 
     const selectedOffsets = Object.entries(reminderChips)
-      .filter(([k, v]) => v)
+      .filter(([_k, v]) => v)
       .map(([k]) => parseInt(k, 10));
     const customOffsets = customReminder
       .split(',')
@@ -167,7 +167,7 @@ export const AddSubscriptionScreen = ({ navigation }: any) => {
           )}
 
           {/* Reminder Offsets */}
-          <Text style={{ marginTop: 12, marginBottom: 8, color: '#444' }}>Remind me before due date</Text>
+          <Text style={styles.reminderLabel}>Remind me before due date</Text>
           <SegmentedButtons
             value={Object.keys(reminderChips).filter((k) => reminderChips[parseInt(k, 10)]).join(',')}
             onValueChange={(val) => {
@@ -179,7 +179,7 @@ export const AddSubscriptionScreen = ({ navigation }: any) => {
               { value: '3', label: '3 days' },
               { value: '7', label: '7 days' },
             ]}
-            style={{ marginBottom: 8 }}
+            style={styles.reminderButtons}
           />
           <TextInput
             label="Custom offsets (e.g. 2,5,10)"
@@ -295,6 +295,14 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-end',
     marginRight: 10,
     marginTop: 4,
+  },
+  reminderLabel: {
+    marginTop: 12,
+    marginBottom: 8,
+    color: '#444',
+  },
+  reminderButtons: {
+    marginBottom: 8,
   },
 });
 

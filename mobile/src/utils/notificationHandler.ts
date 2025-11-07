@@ -1,0 +1,116 @@
+// src/utils/notificationHandler.ts
+import messaging from '@react-native-firebase/messaging';
+import { Alert } from 'react-native';
+
+/**
+ * Request notification permissions (iOS)
+ */
+export async function requestNotificationPermission(): Promise<boolean> {
+  const authStatus = await messaging().requestPermission();
+  const enabled =
+    authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
+    authStatus === messaging.AuthorizationStatus.PROVISIONAL;
+
+  if (enabled) {
+    console.log('✅ Notification permission granted:', authStatus);
+  } else {
+    console.log('❌ Notification permission denied');
+  }
+
+  return enabled;
+}
+
+/**
+ * Display notification (foreground only - background handled by FCM automatically)
+ */
+async function displayNotification(
+  title: string,
+  body: string,
+  _data?: { [key: string]: string }
+) {
+  // For foreground notifications, show an alert
+  // Background/quit state notifications are handled automatically by FCM
+  Alert.alert(title, body, [
+    {
+      text: 'OK',
+      onPress: () => console.log('Notification acknowledged'),
+    },
+  ]);
+}
+
+/**
+ * Handle foreground messages (when app is open)
+ */
+export function setupForegroundMessageHandler() {
+  const unsubscribe = messaging().onMessage(async (remoteMessage) => {
+    console.log('📬 Foreground notification received:', remoteMessage);
+
+    const { notification, data } = remoteMessage;
+    
+    if (notification) {
+      await displayNotification(
+        notification.title || 'Subscription Reminder',
+        notification.body || '',
+        data as { [key: string]: string }
+      );
+    }
+  });
+
+  return unsubscribe;
+}
+
+/**
+ * Handle background messages (when app is in background/quit)
+ * Note: Background notifications are displayed automatically by FCM
+ */
+export function setupBackgroundMessageHandler() {
+  messaging().setBackgroundMessageHandler(async (remoteMessage) => {
+    console.log('📭 Background notification received:', remoteMessage);
+    // FCM handles display automatically for background/quit state
+    // This handler is for data-only messages or custom processing
+  });
+}
+
+/**
+ * Handle notification press events
+ */
+export function setupNotificationPressHandler(
+  onNotificationPress?: (data: any) => void
+) {
+  // Handle notification opened app from quit state
+  messaging()
+    .getInitialNotification()
+    .then((remoteMessage) => {
+      if (remoteMessage) {
+        console.log('🔔 Notification opened app from quit state:', remoteMessage);
+        onNotificationPress?.(remoteMessage.data);
+      }
+    });
+
+  // Handle notification press when app is in background
+  messaging().onNotificationOpenedApp((remoteMessage) => {
+    console.log('🔔 Notification opened app from background:', remoteMessage);
+    onNotificationPress?.(remoteMessage.data);
+  });
+}
+
+/**
+ * Initialize all notification handlers
+ */
+export async function initializeNotifications(
+  onNotificationPress?: (data: any) => void
+) {
+  console.log('🔔 Initializing notification handlers...');
+
+  // Request permission
+  await requestNotificationPermission();
+
+  // Setup handlers
+  const unsubscribeForeground = setupForegroundMessageHandler();
+  setupBackgroundMessageHandler();
+  setupNotificationPressHandler(onNotificationPress);
+
+  console.log('✅ Notification handlers initialized');
+
+  return unsubscribeForeground;
+}
