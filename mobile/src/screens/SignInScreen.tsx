@@ -17,7 +17,8 @@ export const SignInScreen = ({ navigation }: any) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const { signIn } = useAuth();
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const { signIn, signInWithGoogle } = useAuth();
 
   const handleSignIn = async () => {
     if (!email.trim() || !password.trim()) {
@@ -33,8 +34,15 @@ export const SignInScreen = ({ navigation }: any) => {
     setLoading(false);
   };
 
-  const handleGoogleSignIn = () =>
-    Alert.alert('Coming Soon', 'Google Sign-In integration is not yet configured.');
+  const handleGoogleSignIn = async () => {
+    setGoogleLoading(true);
+    const { error } = await signInWithGoogle();
+    if (error) {
+      Alert.alert('Google Sign-In Error', error.message);
+    }
+    setGoogleLoading(false);
+  };
+
   const handleAppleSignIn = () =>
     Alert.alert('Coming Soon', 'Apple Sign-In integration is not yet configured.');
 
@@ -100,6 +108,8 @@ export const SignInScreen = ({ navigation }: any) => {
               mode="contained-tonal"
               icon="google"
               onPress={handleGoogleSignIn}
+              loading={googleLoading}
+              disabled={googleLoading || loading}
               style={styles.socialButton}>
               Sign in with Google
             </Button>

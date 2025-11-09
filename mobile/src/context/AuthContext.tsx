@@ -19,6 +19,7 @@ import {
   getToken,
   AuthorizationStatus,
 } from '@react-native-firebase/messaging';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
 
 // ---------------------------------------------------------
 // Context Interface
@@ -228,8 +229,69 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       return { error };
     },
     signInWithGoogle: async () => {
-      console.log('Google Sign-In not yet configured.');
-      return { error: null };
+      try {
+        console.log('🔵 Starting Google Sign-In...');
+        
+        // Configure Google Sign-In
+        // Use Web Client ID for Supabase Auth (not Android Client ID)
+        await GoogleSignin.configure({
+          webClientId: '217563768495-deql7ahfm2vl35lhvf5fiffvbnqa90kr.apps.googleusercontent.com',
+          offlineAccess: true,
+          scopes: ['email', 'profile'],
+        });
+        console.log('✅ Google Sign-In configured');
+
+        // Check if device supports Google Play Services
+        await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+        console.log('✅ Play Services available');
+
+        // Sign in with Google
+        const userInfo = await GoogleSignin.signIn();
+        console.log('✅ Google Sign-In successful, user:', userInfo.data?.user.email);
+        
+        // Get ID token
+        const tokens = await GoogleSignin.getTokens();
+        console.log('✅ Tokens received');
+
+        if (!tokens.idToken) {
+          throw new Error('No ID token received from Google');
+        }
+
+        // Sign in to Supabase with Google ID token
+        console.log('🔵 Signing in to Supabase...');
+        const { data, error } = await supabase.auth.signInWithIdToken({
+          provider: 'google',
+          token: tokens.idToken,
+        });
+
+        if (error) {
+          console.error('❌ Supabase sign-in error:', error);
+          throw error;
+        }
+
+        console.log('✅ Supabase sign-in successful:', data.user?.email);
+        return { error: null };
+      } catch (error: any) {
+        console.error('❌ Google Sign-In failed:', error);
+        console.error('Error code:', error.code);
+        console.error('Error message:', error.message);
+        
+        // Provide more helpful error messages
+        let errorMessage = error.message || 'Google Sign-In failed';
+        if (error.code === '-5') {
+          errorMessage = 'Google Sign-In was cancelled';
+        } else if (error.code === 'DEVELOPER_ERROR') {
+          errorMessage = 'Configuration error. Please wait a few minutes for Google settings to propagate, then try again.';
+        }
+        
+        return { 
+          error: { 
+            message: errorMessage,
+            name: 'GoogleSignInError',
+            status: 400
+          } as AuthError 
+        };
+      }
     },
     signInWithApple: async () => {
       console.log('Apple Sign-In not yet configured.');

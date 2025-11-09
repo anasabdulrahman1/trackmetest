@@ -9,7 +9,7 @@ import {
   Keyboard,
   View,
 } from 'react-native';
-import { Button, Text, TextInput, HelperText } from 'react-native-paper';
+import { Button, Text, TextInput, HelperText, Divider } from 'react-native-paper';
 import { useAuth } from '../context/AuthContext';
 import { AppLayout } from '../Components/AppLayout';
 
@@ -18,7 +18,8 @@ export const SignUpScreen = ({ navigation }: any) => {
   const [password, setPassword] = useState('');
   const [confirmPwd, setConfirmPwd] = useState('');
   const [loading, setLoading] = useState(false);
-  const { signUp } = useAuth();
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const { signUp, signInWithGoogle } = useAuth();
 
   const handleSignUp = async () => {
     if (!userEmail.trim() || !password.trim() || !confirmPwd.trim()) {
@@ -43,6 +44,15 @@ export const SignUpScreen = ({ navigation }: any) => {
       navigation.navigate('SignIn');
     }
     setLoading(false);
+  };
+
+  const handleGoogleSignUp = async () => {
+    setGoogleLoading(true);
+    const { error } = await signInWithGoogle();
+    if (error) {
+      Alert.alert('Google Sign-Up Error', error.message);
+    }
+    setGoogleLoading(false);
   };
 
   return (
@@ -120,6 +130,18 @@ export const SignUpScreen = ({ navigation }: any) => {
               style={styles.signInLink}>
               Already have an account? Sign In
             </Button>
+
+            <Divider style={styles.divider} />
+
+            <Button
+              mode="contained-tonal"
+              icon="google"
+              onPress={handleGoogleSignUp}
+              loading={googleLoading}
+              disabled={googleLoading || loading}
+              style={styles.socialButton}>
+              Sign up with Google
+            </Button>
           </View>
         </TouchableWithoutFeedback>
       </KeyboardAvoidingView>
@@ -162,5 +184,12 @@ const styles = StyleSheet.create({
     marginTop: 20,
     alignSelf: 'center',
   },
+  divider: {
+    marginVertical: 24,
+  },
+  socialButton: {
+    marginBottom: 12,
+    borderRadius: 12,
+    paddingVertical: 6,
+  },
 });
-
