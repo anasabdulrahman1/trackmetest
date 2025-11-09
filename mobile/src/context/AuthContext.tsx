@@ -225,6 +225,20 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       if (userId) {
         await markDeviceLoggedOut(userId);
       }
+      
+      // Sign out from Google first
+      try {
+        await GoogleSignin.signOut();
+        console.log('✅ Google Sign-Out successful');
+      } catch (error) {
+        console.warn('⚠️ Google Sign-Out failed (may not be signed in with Google):', error);
+        // Continue with Supabase sign out even if Google sign out fails
+      }
+      
+      // Clear any cached credentials
+      await GoogleSignin.clearCachedAccessToken('*');
+      
+      // Finally, sign out from Supabase
       const { error } = await supabase.auth.signOut();
       return { error };
     },
